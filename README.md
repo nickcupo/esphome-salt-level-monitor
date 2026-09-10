@@ -24,12 +24,15 @@ Writeup: [nickcupo.com/projects/water-softener-salt-monitor](https://nickcupo.co
 |---|---|
 | ESP32 DevKit (esp32dev) | |
 | HC-SR04 ultrasonic sensor | Runs on 5 V |
-| 1 kΩ + 2 kΩ resistors | Divider on ECHO, which idles at 5 V; ESP32 pins are 3.3 V |
 | 5 V supply | 1 A USB |
 
 Pins: `GPIO23` trigger, `GPIO22` echo. Mount the sensor facing straight down, above
 the highest brine level, and keep the lid from shifting; a few millimetres changes the
 calibration.
+
+As built, ECHO (a 5 V output) goes straight into GPIO22. That is out of spec for the
+ESP32 and has worked fine since February 2026, which is common with this sensor. The
+by-the-book version puts a 1 kΩ / 2 kΩ divider on ECHO; do that if you are building one.
 
 ## Install
 

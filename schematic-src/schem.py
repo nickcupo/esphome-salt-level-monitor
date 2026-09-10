@@ -163,22 +163,17 @@ def salt():
     d = new()
     esp = d.add(box('ESP32 DevKit  (ESPHome)', (3.6, 4.0), left=['VIN', 'GND'], right=['GPIO23', 'GPIO22'], spacing=1.0).at((0, 0)))
     v5(d, P(esp, 'VIN')); gnd(d, P(esp, 'GND'))
-    hc = d.add(box('HC-SR04 ultrasonic', (3.2, 3.6), left=['VCC', 'TRIG', 'ECHO', 'GND'], spacing=0.8).at((10.0, 0.2)))
+    hc = d.add(box('HC-SR04 ultrasonic', (3.2, 3.6), left=['VCC', 'TRIG', 'ECHO', 'GND'], spacing=0.8).at((9.0, 0.2)))
     v5(d, P(hc, 'VCC')); gnd(d, P(hc, 'GND'))
     jog(d, P(esp, 'GPIO23'), P(hc, 'TRIG'), 6.0)
-    d.add(elm.Label().at((6.1, P(hc, 'TRIG').y + 0.25)).label('TRIG, 3.3 V is enough', fontsize=8.5, halign='left', color=SIG))
-    # ECHO through R1 to node, R2 to ground, node to GPIO22
-    echo = P(hc, 'ECHO')
-    r1 = d.add(elm.Resistor().at(echo).left().length(2.2).label('R1  1 kΩ', fontsize=8.5, ofst=0.2))
-    node = r1.end; dot(d, node)
-    r2 = d.add(elm.Resistor().at(node).down().length(1.8).label('R2  2 kΩ', fontsize=8.5, loc='right', ofst=0.15))
-    gnd(d, r2.end)
-    jog(d, P(esp, 'GPIO22'), node, 5.4)
-    d.add(elm.Label().at((4.4, P(esp, 'GPIO22').y - 0.3)).label('ECHO, divided to 3.3 V', fontsize=8.5, halign='left', valign='top', color=SIG))
-    note(d, (0, -2.6),
-         'ECHO idles at 5 V; R1/R2 bring it to 3.3 V for GPIO22. Sensor faces straight down from the\n'
-         'brine tank lid, above the highest brine level. In the YAML, 30 cm = full and 50 cm = empty;\n'
-         'measure your own tank and change both numbers.')
+    d.add(elm.Label().at((6.1, P(hc, 'TRIG').y + 0.25)).label('TRIG', fontsize=8.5, halign='left', color=SIG))
+    jog(d, P(esp, 'GPIO22'), P(hc, 'ECHO'), 5.4)
+    d.add(elm.Label().at((5.5, P(hc, 'ECHO').y + 0.25)).label('ECHO, wired direct', fontsize=8.5, halign='left', color=SIG))
+    note(d, (0, -2.4),
+         'ECHO is a 5 V output driven straight into GPIO22, which is out of spec for the ESP32 but has run\n'
+         'since February 2026 without trouble. A 1 kΩ / 2 kΩ divider on ECHO is the by-the-book version.\n'
+         'Sensor faces straight down from the brine tank lid, above the highest brine level. In the YAML,\n'
+         '30 cm = full and 50 cm = empty; measure your own tank and change both numbers.')
     d.save(f'{OUT}/salt-schematic.svg'); print('salt ok')
 
 def imac():
