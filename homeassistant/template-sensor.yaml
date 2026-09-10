@@ -1,0 +1,11 @@
+# Optional Home Assistant template sensor: rounds the level to the nearest 5%
+# so the dashboard number only moves when the salt does.
+template:
+  - sensor:
+      - name: "Salt Level"
+        unit_of_measurement: "%"
+        state_class: measurement
+        state: >-
+          {% set raw = states('sensor.water_softener_salt_level') | float(0) %}
+          {% set clamped = [0, [raw, 100] | min] | max %}
+          {{ (clamped / 5) | round(0) * 5 }}

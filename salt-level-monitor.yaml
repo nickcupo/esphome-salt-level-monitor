@@ -1,0 +1,177 @@
+substitutions:
+  device_name: salt-level-monitor
+  friendly_name: "Salt Level Monitor"
+# GPIO pins for ultrasonic sensor
+  trigger_pin: GPIO23
+  echo_pin: GPIO22
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+
+# Enable OTA updates
+ota:
+  - platform: esphome
+
+# WiFi configuration
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+# Enable fallback hotspot in case wifi connection fails
+  ap:
+    ssid: !secret wifi_ssid
+    password: !secret ap_password
+
+# Captive portal for easy WiFi setup
+captive_portal:
+
+# Web server for direct access
+web_server:
+  port: 80
+
+# Sensors
+sensor:
+# Ultrasonic distance sensor - hidden from HA (internal: true)
+  - platform: ultrasonic
+    trigger_pin: ${trigger_pin}
+    echo_pin: ${echo_pin}
+    name: "Salt Tank Distance"
+    id: salt_distance
+    internal: true  # Hides raw distance from Home Assistant
+    update_interval: 60s
+    unit_of_measurement: "cm"
+    accuracy_decimals: 1
+# Timeout if no echo received (adjust based on tank depth)
+    timeout: 3m
+    filters:
+# Convert meters to centimeters for easier reading
+      - multiply: 100
+# Filter out invalid readings
+      - filter_out: nan
+# Moving average for stability
+      - sliding_window_moving_average:
+          window_size: 5
+          send_every: 1
+
+# Salt Level Percentage (RAW) - internal only, used by filtered sensor
+  - platform: template
+    name: "Salt Level Raw"
+    id: salt_level_raw
+    internal: true  # Hidden from HA, only used for filtering
+    unit_of_measurement: "%"
+    accuracy_decimals: 1
+    update_interval: 60s
+    lambda: |-
+      // Based on actual tank measurements
+      // Lower distance = more salt (water level rises as salt displaces it)
+      float full_distance = 30.0;   // Distance when tank is TOPPED OFF (cm)
+      float empty_distance = 50.0;  // Distance when critically low, time to refill (cm)
+      float current = id(salt_distance).state;
+      if (isnan(current)) {
+        return {};
+      }
+      // Calculate percentage (shorter distance = more salt = higher %)
+      float percent = 100.0 * (empty_distance - current) / (empty_distance - full_distance);
+      // Clamp between 0-100
+      return max(0.0f, min(100.0f, percent));
+
+# Salt Level (SMART FILTERED) - this is what shows in Home Assistant
+  - platform: template
+    name: "Salt Level"
+    id: salt_level
+    unit_of_measurement: "%"
+    icon: "mdi:shaker-outline"
+    accuracy_decimals: 0
+    update_interval: 60s
+    lambda: |-
+      static float last_value = 70.0;
+      static float spike_start_value = 0.0;
+      static uint32_t spike_start_time = 0;
+      
+      float current = id(salt_level_raw).state;
+      uint32_t now = millis();
+      
+      if (isnan(current)) {
+        return last_value;
+      }
+      
+      // Detect sudden increase (>3%)
+      float change = current - last_value;
+      
+      if (change > 3.0) {
+        // Possible spike or refill - start monitoring
+        if (spike_start_time == 0) {
+          spike_start_value = last_value;
+          spike_start_time = now;
+        }
+        
+        // Check if we're in a spike (within 30 minutes)
+        if ((now - spike_start_time) < 30 * 60 * 1000) {
+          // Still in spike window - hold at last good value
+          return last_value;
+        } else {
+          // 30 minutes passed and level stayed high - it's a real refill!
+          spike_start_time = 0;
+          last_value = current;
+          return current;
+        }
+      } else if (change < -3.0) {
+        // Large drop detected
+        if (spike_start_time != 0) {
+          // We were in a spike, and it dropped back - was temporary brine event
+          // Keep using the value from before the spike
+          spike_start_time = 0;
+          return spike_start_value;
+        } else {
+          // Not in a spike, normal consumption
+          last_value = current;
+          return current;
+        }
+      } else {
+        // Normal small change - accept it
+        if (spike_start_time == 0) {
+          last_value = current;
+          return current;
+        } else {
+          // In spike window, hold steady
+          return last_value;
+        }
+      }
+
+# WiFi Signal Strength
+  - platform: wifi_signal
+    name: "WiFi Signal"
+    update_interval: 60s
+
+# Uptime sensor
+  - platform: uptime
+    name: "Uptime"
+    update_interval: 60s
+
+# Status LED (uses built-in LED on most ESP32 boards)
+status_led:
+  pin:
+    number: GPIO2
+    inverted: false
+
+# Text sensors
+text_sensor:
+# Device info
+  - platform: version
+    name: "ESPHome Version"
+  - platform: wifi_info
+    ip_address:
+      name: "IP Address"
+    ssid: !secret wifi_ssid
+      name: "Connected SSID"

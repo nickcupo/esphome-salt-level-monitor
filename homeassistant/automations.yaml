@@ -1,0 +1,15 @@
+  alias: Salt Level - Low Alert
+  description: Alert both phones when water softener salt drops below 30%
+  triggers:
+  - entity_id: sensor.water_softener_salt_level
+    below: 30
+    for:
+      minutes: 5
+    trigger: numeric_state
+  actions:
+  - data:
+      title: "\U0001F4A7 Water Softener Alert"
+      message: Salt level is {{ states('sensor.water_softener_salt_level') }}% - Time
+        to refill!
+    action: notify.notify  # e.g. notify.mobile_app_PHONE
+  mode: single
